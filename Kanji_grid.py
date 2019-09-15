@@ -52,7 +52,7 @@ class TestedUnit:
         self.count = 0
         self.mod = 0
 
-    def addDataFromCard(self, idx, card):
+    def addDataFromCard(self, idx, card, timeNow):
         if card.type > 0:
             newTotal = (self.avg_interval * self.count) + card.ivl
 
@@ -80,14 +80,14 @@ def scoreAdjust(score):
     return 1 - 1 / (score * score)
 
 
-def addUnitData(units, unitKey, i, card, kanjionly):
+def addUnitData(units, unitKey, i, card, kanjionly, timeNow):
     validKey = data.ignore.find(unitKey) == -1 and (not kanjionly or isKanji(unitKey))
     if validKey:
         if unitKey not in units:
             unit = TestedUnit(unitKey)
             units[unitKey] = unit
 
-        units[unitKey].addDataFromCard(i, card)
+        units[unitKey].addDataFromCard(i, card, timeNow)
 
 
 def hsvrgbstr(h, s=0.8, v=0.9):
@@ -154,11 +154,11 @@ class SortOrder(enum.Enum):
 class KanjiGrid:
     def __init__(self, mw):
         if mw:
-            self.menuAction = QAction("Generate Kanji Grid", mw, triggered=self.setup)
+            self.menuAction = QAction("Generate Kanji/Hanzi Grid", mw, triggered=self.setup)
             mw.form.menuTools.addSeparator()
             mw.form.menuTools.addAction(self.menuAction)
 
-    def generate(self, config, units, saveMode=False):
+    def generate(self, config, units, timeNow, saveMode=False):
         def kanjitile(char, index, count=0, avg_interval=0, missing=False):
             tile = ""
             score = "NaN"
@@ -184,10 +184,10 @@ class KanjiGrid:
                     tooltip += " | Count: %s | " % count
                     tooltip += "Avg Interval: %s | Score: %s | " % (round(avg_interval, 2), score)
                     tooltip += "Background: %s | Index: %s" % (bgcolour, index)
-                tile += "\t<div style=\"background:%s;\" title=\"%s\">" % (bgcolour, tooltip)
+                tile += "\t<td style=\"background:%s;\" title=\"%s\">" % (bgcolour, tooltip)
             else:
-                tile += "\t<div style=\"background:%s;\">" % (bgcolour)
-            tile += "<a href=\"http://jisho.org/search/%s%%20%%23kanji\" style=\"color:%s;\">%s</a></div>\n" % (char, colour, char)
+                tile += "\t<td style=\"background:%s;\">" % (bgcolour)
+            tile += "<a href=\"http://jisho.org/search/%s%%20%%23kanji\" style=\"color:%s;\">%s</a></td>\n" % (char, colour, char)
 
             return tile
 
@@ -197,12 +197,10 @@ class KanjiGrid:
         else:
             cols = config.thin
         self.html  = "<!doctype html><html><head><meta charset=\"UTF-8\" /><title>Anki Kanji Grid</title>"
-        self.html += "<style type=\"text/css\">body{background-color:#FFF;}.maintable{width:85%%;}.maintable,.missingtable{margin-left:auto;margin-right:auto;display:grid;grid-template-columns:repeat(%s, 1fr);text-align:left;}.maintable > *,.missingtable > *{text-align:center;vertical-align:top;margin:1px;line-height:1.5em;}.key{display:inline-block;width:3em}a,a:visited{color:#000;text-decoration:none;}</style>" % cols
-        if config.autothinwide:
-             self.html += "<style type=\"text/css\">.maintable,.missingtable{display:block;font-size:0px}.maintable > *,.missingtable > *{display:inline-block;font-size:initial;width:1.5em;}</style>"
+        self.html += "<style type=\"text/css\">body{background-color:#FFF;}table{margin-left:auto;margin-right:auto;}.maintable{width:85%;}td{text-align:center;vertical-align:top;}.key{display:inline-block;width:3em}a,a:visited{color:#000;text-decoration:none;}</style>"
         self.html += "</head>\n"
         self.html += "<body>\n"
-        self.html += "<span style=\"font-size: 3em;color: #888;\">Kanji Grid - %s</span><br>\n" % deckname
+        self.html += "<span style=\"font-size: 3em;color: #888;\">%s</span><br>\n" % deckname
         self.html += "<div style=\"margin-bottom: 24pt;padding: 20pt;\"><p style=\"float: left\">Key:</p>"
         self.html += "<p style=\"float: right\">Weak&nbsp;"
 	# keycolors = (hsvrgbstr(n/6.0) for n in range(6+1))
@@ -216,44 +214,50 @@ class KanjiGrid:
             gc = 0
             kanji = [u.value for u in units.values()]
             for i in range(1, len(groups.data)):
-                self.html += "<h2 style=\"color:#888;\">%s Kanji</h2>\n" % groups.data[i][0]
-                table = "<div class=\"maintable\">\n"
+                self.html += "<h2 style=\"color:#888;\">%s</h2>\n" % groups.data[i][0]
+                table = "<table class=\"maintable\"><tr>\n"
                 count = -1
                 for unit in [units[c] for c in groups.data[i][1] if c in kanji]:
                     if unit.count != 0 or config.unseen:
                         count += 1
+                        if count % cols == 0 and count != 0:
+                            table += "</tr>\n<tr>\n"
                         table += kanjitile(unit.value, count, unit.count, unit.avg_interval)
-                table += "</div>\n"
+                table += "</tr></table>\n"
                 n = count+1
                 t = len(groups.data[i][1])
                 gc += n
                 if config.unseen:
-                    table += "<details><summary>Missing kanji</summary><div class=\"missingtable\" style=\"max-width:75%;\">\n"
+                    table += "<details><summary>Missing</summary><table style=\"max-width:75%;\"><tr>\n"
                     count = -1
                     for char in [c for c in groups.data[i][1] if c not in kanji]:
                         count += 1
+                        if count % cols == 0 and count != 0:
+                            table += "</tr>\n<tr>\n"
                         table += kanjitile(char, count, missing=True)
                     if count == -1:
-                        table += "<b style=\"color:#CCC\">None</b>"
-                    table += "</div></details>\n"
+                        table += "<td><b style=\"color:#CCC\">None</b></td>"
+                    table += "</tr></table></details>\n"
                 self.html += "<h4 style=\"color:#888;\">%d of %d - %0.2f%%</h4>\n" % (n, t, n*100.0/t)
                 self.html += table
 
             chars = reduce(lambda x, y: x+y, dict(groups.data).values())
-            self.html += "<h2 style=\"color:#888;\">%s Kanji</h2>" % groups.data[0][0]
-            table = "<div class=\"maintable\">\n"
+            self.html += "<h2 style=\"color:#888;\">%s</h2>" % groups.data[0][0]
+            table = "<table class=\"maintable\"><tr>\n"
             count = -1
             for unit in [u for u in units.values() if u.value not in chars]:
                 if unit.count != 0 or config.unseen:
                     count += 1
+                    if count % cols == 0 and count != 0:
+                        table += "</tr>\n<tr>\n"
                     table += kanjitile(unit.value, count, unit.count, unit.avg_interval)
-            table += "</div>\n"
+            table += "</tr></table>\n"
             n = count+1
             self.html += "<h4 style=\"color:#888;\">%d of %d - %0.2f%%</h4>\n" % (n, gc, n*100.0/gc)
             self.html += table
             self.html += "<style type=\"text/css\">.datasource{font-style:italic;font-size:0.75em;margin-top:1em;overflow-wrap:break-word;}.datasource a{color:#1034A6;}</style><span class=\"datasource\">Data source: " + ' '.join("<a href=\"{}\">{}</a>".format(w, urllib.parse.unquote(w)) if re.match("https?://", w) else w for w in groups.source.split(' ')) + "</span>"
         else:
-            table = "<div class=\"maintable\">\n"
+            table = "<table class=\"maintable\"><tr>\n"
             unitsList = {
                 SortOrder.NONE:      sorted(units.values(), key=lambda unit: (unit.idx, unit.count)),
                 SortOrder.UNICODE:   sorted(units.values(), key=lambda unit: (unicodedata.name(unit.value), unit.count)),
@@ -264,15 +268,17 @@ class KanjiGrid:
             for unit in unitsList:
                 if unit.count != 0 or config.unseen:
                     count += 1
+                    if count % cols == 0 and count != 0:
+                        table += "</tr>\n<tr>\n"
                     table += kanjitile(unit.value, count, unit.count, unit.avg_interval)
-            table += "</div>\n"
-            self.html += "<h4 style=\"color:#888;\">%d total unique kanji</h4>\n" % (count+1)
+            table += "</tr></table>\n"
+            self.html += "<h4 style=\"color:#888;\">%d total unique characters</h4>\n" % (count+1)
             self.html += table
         self.html += "</div></body></html>\n"
-        self.timepoint("HTML generated")
 
-    def displaygrid(self, config, units):
-        self.generate(config, units)
+    def displaygrid(self, config, units, timeNow):
+        self.generate(config, units, timeNow)
+        self.timepoint("HTML generated")
         self.win = QDialog(mw)
         self.wv = KanjiGridWebView()
         vl = QVBoxLayout()
@@ -299,10 +305,8 @@ class KanjiGrid:
             if ".htm" not in fileName:
                 fileName += ".html"
             with open(fileName, 'w', encoding='utf-8') as fileOut:
-                self.time = time.time()
-                self.timepoint("HTML start")
-                units = self.kanjigrid(config)
-                self.generate(config, units, True)
+                (units, timeNow) = self.kanjigrid(config)
+                self.generate(config, units, timeNow, True)
                 fileOut.write(self.html)
             mw.progress.finish()
             showInfo("Page saved to %s!" % os.path.abspath(fileOut.name))
@@ -329,6 +333,7 @@ class KanjiGrid:
 
         units = dict()
         notes = dict()
+        timeNow = time.time()
         for i in cids:
             card = mw.col.getCard(i)
             if card.nid not in notes.keys():
@@ -345,16 +350,16 @@ class KanjiGrid:
                 unitKey = notes[card.nid]
             if unitKey is not None:
                 for ch in unitKey:
-                    addUnitData(units, ch, i, card, config.kanjionly)
+                    addUnitData(units, ch, i, card, config.kanjionly, timeNow)
         self.timepoint("Units created")
-        return units
+        return units, timeNow
 
     def makegrid(self, config):
         self.time = time.time()
         self.timepoint("Start")
-        units = self.kanjigrid(config)
+        (units, timeNow) = self.kanjigrid(config)
         if units is not None:
-            self.displaygrid(config, units)
+            self.displaygrid(config, units, timeNow)
 
     def setup(self):
         addonconfig = mw.addonManager.getConfig(__name__)
@@ -383,7 +388,7 @@ class KanjiGrid:
         il = QVBoxLayout()
         fl = QHBoxLayout()
         field = QLineEdit()
-        field.setPlaceholderText("e.g. \"kanji\" or \"sentence-kanji\" (default: \"%s\")" % config.pattern)
+        field.setPlaceholderText("e.g. \"kanji\", \"hanzi\" or \"sentence-kanji\" (default: \"%s\")" % config.pattern)
         il.addWidget(QLabel("Pattern or Field names to search for (case insensitive):"))
         fl.addWidget(field)
         liter = QCheckBox("Match exactly")
@@ -398,24 +403,13 @@ class KanjiGrid:
         ttcol = QSpinBox()
         ttcol.setRange(1, 99)
         ttcol.setValue(config.thin)
-        il.addWidget(QLabel("Number of Columns:"))
-        coll = QHBoxLayout()
-        coll.addWidget(QLabel("In-app:"))
-        coll.addWidget(ttcol)
+        il.addWidget(QLabel("Number of Columns in the in-app table:"))
+        il.addWidget(ttcol)
         wtcol = QSpinBox()
         wtcol.setRange(1, 99)
         wtcol.setValue(config.wide)
-        coll.addWidget(QLabel("Exported:"))
-        coll.addWidget(wtcol)
-        itcol = QCheckBox("Don't care")
-        itcol.setChecked(addonconfig['defaults'].get("autothinwide", False))
-        def disableEnableColumnSettings(state):
-            ttcol.setEnabled(state != Qt.Checked)
-            wtcol.setEnabled(state != Qt.Checked)
-        itcol.stateChanged.connect(disableEnableColumnSettings)
-        disableEnableColumnSettings(itcol.checkState())
-        coll.addWidget(itcol)
-        il.addLayout(coll)
+        il.addWidget(QLabel("Number of Columns in the exported table:"))
+        il.addWidget(wtcol)
         groupby = QComboBox()
         groupby.addItems([
             *("None, sorted by " + x.pretty_value() for x in SortOrder),
@@ -460,7 +454,6 @@ class KanjiGrid:
             config.groupby = groupby.currentIndex()
             config.unseen = shnew.isChecked()
             config.tooltips = toolt.isChecked()
-            config.autothinwide = itcol.isChecked()
             self.makegrid(config)
             mw.progress.finish()
             self.win.show()
