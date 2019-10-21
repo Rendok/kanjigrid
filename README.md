@@ -6,7 +6,7 @@ Improved/updated version of the original [Kanji Grid][0].
 Differences from the original
 -----------------------------
 
- - Supports Chinese Hanzi
+ - Supports Chinese Hanzi (HSK levels)
 
 License
 -------
