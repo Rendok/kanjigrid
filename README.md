@@ -1,26 +1,12 @@
-Kanji Grid
+Kanji/Hanzi Grid
 ==========
 
-Improved/updated version of the original [Kanji Grid][0] addon for Anki 2.0.
+Improved/updated version of the original [Kanji Grid][0].
 
 Differences from the original
 -----------------------------
 
- - Compatible with Anki 2.1+
- - Jisho.org is used instead of WWWJDIC for links to kanji details
- - Updated kanji data
-   - 教育漢字 (2017)
-   - 常用漢字 (2010)
-   - 人名用漢字 (2017)
- - New features
-   - Changeable default settings
-   - Deck selection in the "Generate Kanji Grid" window
-   - Selecting multiple source fields
-   - Grouping by JLPT level
-   - Grouping by Kanji Kentei level
-   - Grouping by RTK volume
-
-If you're still using Anki 2.0, use the `anki20` branch.
+ - Supports Chinese Hanzi (HSK levels)
 
 License
 -------
