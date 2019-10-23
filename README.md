@@ -7,6 +7,9 @@ Differences from the original
 -----------------------------
 
  - Supports Chinese Hanzi (HSK levels)
+ - Bug is fixed in JLPT dictionary
+ 
+![Overview](http://i.imgur.com/Zy6HYYG.png)
 
 License
 -------
